@@ -48,10 +48,13 @@ public:
         }
         DWORD length;
         PCWSTR value;
-        // this bit is to stop the defaultdocumentmodule from messing with the protocol
-        HRESULT hr = pHttpContext->GetServerVariable("X_SERVER_PROTOCOL", &value, &length);
+        // this bit is to stop the defaultdocumentmodule and url rewrite from messing with the protocol
+        HRESULT hr = pHttpContext->GetServerVariable("HTTP_X_SERVER_PROTOCOL", &value, &length);
         if (FAILED(hr)) {
-            pHttpContext->SetServerVariable("X_SERVER_PROTOCOL", szProtocol);
+#ifdef _DEBUG
+            OutputDebugString(L"Request was missing HTTP_X_SERVER_PROTOCOL");
+#endif
+            pHttpContext->SetServerVariable("HTTP_X_SERVER_PROTOCOL", szProtocol);
         }
 
 #ifdef _DEBUG
