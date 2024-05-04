@@ -15,20 +15,14 @@ public:
         IN IPreBeginRequestProvider* pProvider
     )
     {
-        UNREFERENCED_PARAMETER(pProvider);
-
         IHttpContext* pHttpContext = pProvider->GetHttpContext();
         if (pHttpContext == nullptr)
-        {
             return GL_NOTIFICATION_CONTINUE;
-        }
 
         HTTP_REQUEST* pRawRequest = pHttpContext->GetRequest()->GetRawHttpRequest();
         if (pRawRequest == nullptr)
-        {
             return GL_NOTIFICATION_CONTINUE;
-        }
-        
+
         ULONG flags = pRawRequest->Flags;
         USHORT HttpMajorVersion = pRawRequest->Version.MajorVersion;
         USHORT HttpMinorVersion = pRawRequest->Version.MinorVersion;
