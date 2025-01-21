@@ -6,6 +6,7 @@
 #include <windows.h>
 #include <wchar.h>
 #include <http.h>
+#include "Algorithms.h"
 
 class ProtocolInfoModule : public CGlobalModule
 {
@@ -19,9 +20,73 @@ public:
         if (pHttpContext == nullptr)
             return GL_NOTIFICATION_CONTINUE;
 
-        HTTP_REQUEST* pRawRequest = pHttpContext->GetRequest()->GetRawHttpRequest();
+        IHttpRequest* pHttpRequest = pHttpContext->GetRequest();
+        if (pHttpRequest == nullptr)
+            return GL_NOTIFICATION_CONTINUE;
+
+        HTTP_REQUEST* pRawRequest = pHttpRequest->GetRawHttpRequest();
         if (pRawRequest == nullptr)
             return GL_NOTIFICATION_CONTINUE;
+
+
+        DWORD length;
+        PCWSTR value;
+        HRESULT hr = pHttpContext->GetServerVariable("HTTPS", &value, &length);
+        if (SUCCEEDED(hr)) {
+            if (wcscmp(value, L"on") == 0) {
+                pHttpContext->SetServerVariable("HTTP_X_FORWARDED_PROTOCOL", L"https");
+                pHttpContext->SetServerVariable("HTTP_X_FORWARDED_PROTO", L"https");
+            }
+            else if (wcscmp(value, L"off") == 0) {
+                pHttpContext->SetServerVariable("HTTP_X_FORWARDED_PROTOCOL", L"http");
+                pHttpContext->SetServerVariable("HTTP_X_FORWARDED_PROTO", L"http");
+            }
+        }
+        length = NULL;
+        value = NULL;
+        hr = pHttpContext->GetServerVariable("CRYPT_PROTOCOL", &value, &length);
+        if (SUCCEEDED(hr)) {
+            if (wcscmp(value, L"4") == 0 || wcscmp(value, L"8") == 0) {
+                pHttpContext->SetServerVariable("TLS_VERSION", value);
+            }
+            else if (wcscmp(value, L"10") == 0 || wcscmp(value, L"20") == 0) {
+                pHttpContext->SetServerVariable("TLS_VERSION", L"SSLv3");
+            }
+            else if (wcscmp(value, L"40") == 0 || wcscmp(value, L"80") == 0) {
+                pHttpContext->SetServerVariable("TLS_VERSION", L"TLS1.0");
+            }
+            else if (wcscmp(value, L"100") == 0 || wcscmp(value, L"200") == 0) {
+                pHttpContext->SetServerVariable("TLS_VERSION", L"TLS1.1");
+            }
+            else if (wcscmp(value, L"400") == 0 || wcscmp(value, L"800") == 0) {
+                pHttpContext->SetServerVariable("TLS_VERSION", L"TLS1.2");
+            }
+            else if (wcscmp(value, L"1000") == 0 || wcscmp(value, L"2000") == 0) {
+                pHttpContext->SetServerVariable("TLS_VERSION", L"TLS1.3");
+            }
+        }
+
+        length = NULL;
+        value = NULL;
+        hr = pHttpContext->GetServerVariable("CRYPT_CIPHER_ALG_ID", &value, &length);
+        if (SUCCEEDED(hr)) {
+            pHttpContext->SetServerVariable("TLS_CIPHER_ALG", findValue(value));
+        }
+
+        length = NULL;
+        value = NULL;
+        hr = pHttpContext->GetServerVariable("CRYPT_HASH_ALG_ID", &value, &length);
+        if (SUCCEEDED(hr)) {
+            pHttpContext->SetServerVariable("TLS_HASH_ALG", findValue(value));
+        }
+
+        length = NULL;
+        value = NULL;
+        hr = pHttpContext->GetServerVariable("CRYPT_KEYEXCHANGE_ALG_ID", &value, &length);
+        if (SUCCEEDED(hr)) {
+            pHttpContext->SetServerVariable("TLS_KEYEXCHANGE_ALG", findValue(value));
+        }
+
 
         ULONG flags = pRawRequest->Flags;
         USHORT HttpMajorVersion = pRawRequest->Version.MajorVersion;
@@ -40,10 +105,12 @@ public:
         {
             swprintf_s(szProtocol, L"HTTP/%u.%u", HttpMajorVersion, HttpMinorVersion);
         }
-        DWORD length;
-        PCWSTR value;
-        // this bit is to stop the defaultdocumentmodule and url rewrite from messing with the protocol
-        HRESULT hr = pHttpContext->GetServerVariable("HTTP_X_SERVER_PROTOCOL", &value, &length);
+
+        // this check is to stop the defaultdocumentmodule and url rewrite from messing with the protocol
+        // its spoofable and i hate it but its okay for informational stuff? hm
+        length = NULL;
+        value = NULL;
+        hr = pHttpContext->GetServerVariable("HTTP_X_SERVER_PROTOCOL", &value, &length);
         if (FAILED(hr)) {
 #ifdef _DEBUG
             OutputDebugString(L"Request was missing HTTP_X_SERVER_PROTOCOL");
